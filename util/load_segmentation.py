@@ -20,20 +20,24 @@ def display_mask_image(display_list):
     plt.axis('off')
   plt.show()
 
-def parse_image(img: str):
+def parse_image(img_shape: list, img: str):
+  
     msk = tf.strings.regex_replace(img, "Images", "Segmentation")
     img = tf.image.decode_png(tf.io.read_file(img),channels=CHANNELS)
     msk = tf.image.decode_png(tf.io.read_file(msk),channels=CHANNELS)
-    msk = tf.where(msk < 1, np.dtype('uint8').type(0), np.dtype('uint8').type(1))
     
+    img = tf.image.resize(img,img_shape)
+    msk = tf.image.resize(msk,img_shape)
+
+    msk = tf.where(msk < 1, np.dtype('uint8').type(0), np.dtype('uint8').type(1))
     return {"image":img,"mask": msk}
 
 
-def generate_dataset(dataPath,imageType,seed=42):
+def generate_dataset(dataPath, imageType, seed=42, img_shape=[572,572]):
     #list
     images = glob(os.path.join(dataPath,imageType))
 
     train_dataset = tf.data.Dataset.list_files(os.path.join(dataPath,imageType), seed=seed)
-    train_dataset = train_dataset.map(parse_image)
+    train_dataset = train_dataset.map(lambda x: parse_image(img_shape,x))
     
     return train_dataset
