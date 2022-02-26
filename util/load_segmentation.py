@@ -26,10 +26,11 @@ def parse_image(img_shape: list, img: str):
     img = tf.image.decode_png(tf.io.read_file(img),channels=CHANNELS)
     msk = tf.image.decode_png(tf.io.read_file(msk),channels=CHANNELS)
     
-    img = tf.image.resize(img,img_shape)
-    msk = tf.image.resize(msk,img_shape)
+    img = tf.image.resize(img,img_shape,antialias=True)
+    msk = tf.image.resize(msk,img_shape,antialias=True)
 
-    msk = tf.where(msk < 1, np.dtype('uint8').type(0), np.dtype('uint8').type(1))
+    msk = tf.where(msk < 1, np.dtype('uint8').type(0), np.dtype('uint8').type(1))    
+    img = img/255
     return {"image":img,"mask": msk}
 
 

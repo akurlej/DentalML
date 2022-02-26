@@ -1,7 +1,7 @@
 from tensorflow import keras
 from keras.models import Model
 from keras.models import Input
-from keras.layers import Conv2D,MaxPooling2D,Conv1D,Cropping2D,Concatenate
+from keras.layers import Conv2D,MaxPooling2D,Conv1D,Cropping2D,Concatenate,Dropout,BatchNormalization
 from keras.layers import Conv2DTranspose
 from keras.layers import Activation
 from keras.initializers import RandomNormal
@@ -9,69 +9,66 @@ from keras.layers import Concatenate
 from keras.models import load_model
 from keras.initializers import RandomNormal
 
-def UNET(input_shape=(572,572,1)):
-  init = RandomNormal(stddev=0.02)
-  input=Input(shape=input_shape)
+def UNET(input_shape=(512,512,1)):
+  if input_shape != (512,512,1):
+    raise ValueError("This image size is unsupported, change size or update code.")
 
-  '''block 1'''
-  l1=Conv2D(1, (3,3), activation ='relu', kernel_initializer=init)(input)
-  l1=Conv2D(64, (3,3),  activation ='relu',kernel_initializer=init)(l1)
+  input = Input(shape = input_shape)
+  #init = RandomNormal(stddev = 0.2)
+  init = 'he_normal'
 
-  crop_1=Cropping2D(88)(l1)
+  #Model consists of 4 contraction, and then 4 expansions
+  #each expansion concats the downward expansion
+  
+  #helper funcs to build model
+  def block_layer(input,filters,kernel_initializer, \
+                        activation="relu",name=None, doBatchNorm = True):
+    conv1 = Conv2D(filters,(3,3), activation = activation, padding = 'same',\
+                   kernel_initializer = kernel_initializer, name = "{}A".format(name))(input)
+    d1=Dropout(0.1, name = "{}B".format(name))(conv1)
+    conv2 = Conv2D(filters,(3,3), activation = activation, padding = 'same',\
+                   kernel_initializer = kernel_initializer, name = "{}C".format(name))(d1)
+    if doBatchNorm:
+      b=BatchNormalization(name = "{}D".format(name))(conv2)
+      return b
+    else: 
+      return conv2
 
-  '''block 2'''
-  l2 =MaxPooling2D((2,2))(l1)
-  l2=Conv2D(128, (3,3),   activation ='relu',kernel_initializer=init)(l2)
-  l2=Conv2D(128, (3,3),   activation ='relu',kernel_initializer=init)(l2)
+  def expand_and_concat(inputBefore,inputSame,filters,kernel_initializer,\
+                        activation="relu",name=None):
+    conv = Conv2DTranspose(filters,(4,4), activation = activation, name = "{}up".format(name),\
+                             padding = 'same', strides=(2,2),kernel_initializer = kernel_initializer)(inputBefore)
+    x = Concatenate(name = "{}combine".format(name))([conv,inputSame])
+    return x
+  #~~~
+  #build model
+  #512->256
+  down1 = block_layer(input=input,filters=32,kernel_initializer=init,name="Down1")
+  #256->128
+  down2 = block_layer(input=MaxPooling2D(pool_size=(2,2))(down1),filters=64,kernel_initializer=init,name="Down2")
+  #128->64
+  down3 = block_layer(input=MaxPooling2D(pool_size=(2,2))(down2),filters=128,kernel_initializer=init,name="Down3")
+  #64->32
+  down4 = block_layer(input=MaxPooling2D(pool_size=(2,2))(down3),filters=256,kernel_initializer=init,name="Down4")
+  #BEG BASE~~~
+  base = block_layer(input=MaxPooling2D(pool_size=(2,2))(down4),filters=512,kernel_initializer=init,name="Base")
+  #END BASE~~~
+  #32->64
+  up4 = block_layer(input = expand_and_concat(base,down4,filters=512,kernel_initializer=init,name="Up4"),\
+                    filters=256,kernel_initializer=init,name="Up4")
+  #64->128
+  up3 = block_layer(input = expand_and_concat(up4,down3,filters=256,kernel_initializer=init,name="Up3"),\
+                    filters=128,kernel_initializer=init,name="Up3")
+  #128->256
+  up2 = block_layer(input = expand_and_concat(up3,down2,filters=128,kernel_initializer=init,name="Up2"),\
+                    filters=64,kernel_initializer=init,name="Up2")
+  #256->512
+  up1 = block_layer(input = expand_and_concat(up2,down1,filters=64,kernel_initializer=init,name = "Up1"),\
+                    filters=32,kernel_initializer=init,name="Up1", doBatchNorm=False)
+  #~~~
 
-  crop_2=Cropping2D(40)(l2)
-
-  '''block 3'''
-  l3 =MaxPooling2D((2,2))(l2)
-  l3=Conv2D(256, (3,3),  activation ='relu',kernel_initializer=init)(l3)
-  l3=Conv2D(256, (3,3),  activation ='relu',kernel_initializer=init)(l3)
-
-  crop_3=Cropping2D(16)(l3)
-
-  '''block 4'''
-  l4 =MaxPooling2D((2,2))(l3)
-  l4=Conv2D(512, (3,3),  activation ='relu', kernel_initializer=init)(l4)
-  l4=Conv2D(512, (3,3),  activation ='relu',kernel_initializer=init)(l4)
-
-  crop_4=Cropping2D(4)(l4)
-  '''block 5'''
-  l5 =MaxPooling2D((2,2))(l4)
-  l5=Conv2D(1024, (3,3), activation ='relu',kernel_initializer=init)(l5)
-  l5=Conv2D(1024, (3,3), activation ='relu',kernel_initializer=init)(l5)
-
-
-  '''block 6'''
-  u0=Conv2DTranspose(512, (2,2), strides=(2, 2), kernel_initializer=init)(l5)
-  u0=Concatenate()([u0,crop_4])
-  u0=Conv2D(512, (3,3), activation ='relu', kernel_initializer=init)(u0)
-  u0=Conv2D(512, (3,3), activation ='relu', kernel_initializer=init)(u0)
-
-  '''block 7'''
-  u1=Conv2DTranspose(256, (2,2), strides=(2, 2), kernel_initializer=init)(u0)
-  u1=Concatenate()([u1,crop_3])
-  u1=Conv2D(256, (3,3), activation ='relu', kernel_initializer=init)(u1)
-  u1=Conv2D(256, (3,3), activation ='relu', kernel_initializer=init)(u1)
-
-  '''block 8'''
-  u2=Conv2DTranspose(128, (2,2),strides=(2, 2), kernel_initializer=init)(u1)
-  u2=Concatenate()([u2,crop_2])
-  u2=Conv2D(128, (3,3), activation ='relu', kernel_initializer=init)(u2)
-  u2=Conv2D(128, (3,3),  activation ='relu', kernel_initializer=init)(u2)
-
-  '''block 9'''
-  u3=Conv2DTranspose(64, (2,2), strides=(2, 2),kernel_initializer=init)(u2)
-
-  u3=Concatenate()([u3,crop_1])
-  u3=Conv2D(64, (3,3),  activation ='relu', kernel_initializer=init)(u3)
-  u3=Conv2D(64, (3,3),  activation ='relu', kernel_initializer=init)(u3)
-  op=Conv2D(2, (1,1),  activation ='relu', kernel_initializer=init)(u3)
- 
-
-  model = Model(input, op)
-    
-  return model
+  #and convolve base image with mask.
+  out = Conv2D(1,(1,1), activation = "sigmoid", padding = 'same', kernel_initializer = init,name = "Final")(up1)
+  
+  #model should now just be
+  return Model(input,out)
