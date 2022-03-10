@@ -50,13 +50,16 @@ def augment_image(img,mask,seed,enable):
   return (img,mask)
 
 
-def generate_dataset(dataPath, imageType, seed=42, img_shape=(512,512,1), batch_size = 16,enable_augmentation = (1,1),
-                     kfold = 1):
+def generate_dataset(dataPath, imageType, seed=42, img_shape=(512,512,1), batch_size = 16,enable_augmentation = (1,1),\
+                     repeat_count=3, kfold = 1):
     #list
     datasets = []
     img_shape = [img_shape[0], img_shape[1]]
 
-    files = tf.data.Dataset.list_files(os.path.join(dataPath,imageType), seed=seed)
+    if not any(enable_augmentation):
+      repeat_count = 1
+      
+    files = tf.data.Dataset.list_files(os.path.join(dataPath,imageType), seed=seed).repeat(count=repeat_count)
     for k in range(kfold):
       train_dataset = files.shard(num_shards = kfold, index = k)
       train_dataset = train_dataset.shuffle(seed=seed, buffer_size = len(train_dataset), reshuffle_each_iteration=True)

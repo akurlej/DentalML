@@ -8,8 +8,24 @@ from keras.initializers import RandomNormal
 from keras.layers import Concatenate
 from keras.models import load_model
 from keras.initializers import RandomNormal
+import warnings
 
-def UNET(input_shape=(512,512,1)):
+def get_class_dict(input_file):
+  class_dict = {}
+  with open("input_file","r") as fh:
+    lines = fh.readlines()
+    ctr = 0
+    for line in lines:
+      if line.strip() not in class_dict.values():
+        class_dict[ctr] = line
+        ctr += 1
+      else:
+        #the line already exists, throw a warning
+        warnings.warn("{} already added, skipping...".format(line))
+  return  class_dict
+
+
+def UNET(input_shape=(512,512,1),num_classes = 1):
   if input_shape != (512,512,1):
     raise ValueError("This image size is unsupported, change size or update code.")
 
@@ -68,7 +84,7 @@ def UNET(input_shape=(512,512,1)):
   #~~~
 
   #and convolve base image with mask.
-  out = Conv2D(1,(1,1), activation = "sigmoid", padding = 'same', kernel_initializer = init,name = "Final")(up1)
+  out = Conv2D(num_classes,(1,1), activation = "sigmoid", padding = 'same', kernel_initializer = init,name = "Final")(up1)
   
   #model should now just be
   return Model(input,out)
