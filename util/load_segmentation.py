@@ -57,7 +57,10 @@ def generate_dataset(dataPath, imageType, seed=42, img_shape=(512,512,1), batch_
     img_shape = [img_shape[0], img_shape[1]]
 
     if not any(enable_augmentation):
+      print("no image augmentaton")
       repeat_count = 1
+    else:
+      print("image augmentation")
       
     files = tf.data.Dataset.list_files(os.path.join(dataPath,imageType), seed=seed).repeat(count=repeat_count)
     for k in range(kfold):
