@@ -69,7 +69,8 @@ def generate_dataset(dataPath, imageType, seed=42, img_shape=(512,512,1), batch_
       train_dataset = train_dataset.map(lambda x: parse_image(img_shape,x),num_parallel_calls=tf.data.AUTOTUNE)
       train_dataset = train_dataset.map(lambda x,y: augment_image(x,y,seed,enable_augmentation),\
                       num_parallel_calls=tf.data.AUTOTUNE)
-      train_dataset = train_dataset.batch(batch_size)
+      if batch_size is not None:
+        train_dataset = train_dataset.batch(batch_size)
       train_dataset = train_dataset.prefetch(tf.data.AUTOTUNE)
       datasets.append(train_dataset)
 
