@@ -91,8 +91,8 @@ def generate_dataset(dataPath, imageType, seed=42, img_shape=(512,512,1), batch_
     datasets = []
     img_shape = [img_shape[0], img_shape[1]]
 
-    if len(enable_agumentation) != 6:
-      raise ValueError("Enable augmentation value not of appropriate length")
+    if len(enable_augmentation) != 6:
+      raise ValueError("Enable augmentation value not of appropriate lengthrtr")
 
     if not any(enable_augmentation):
       print("no image augmentaton")
